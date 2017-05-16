@@ -72,17 +72,18 @@ runcmd(struct cmd *cmd)
   case '<':
     rcmd = (struct redircmd*)cmd;
     // Your code here ...
+    mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
     if (rcmd->type == '<') {
       // input
       close(0);
-      if (open(rcmd->file, O_RDONLY) != 0) {
+      if (open(rcmd->file, O_RDONLY, mode) != 0) {
         fprintf(stderr, "Opening file error !\n");
         exit(-1);
       }
     } else {
       // output
       close(1);
-      if (open(rcmd->file, O_WRONLY|O_CREAT|O_TRUNC) != 1) {
+      if (open(rcmd->file, O_WRONLY|O_CREAT|O_TRUNC, mode) != 1) {
         fprintf(stderr, "Opening file error !\n");
         exit(-1);
       }
