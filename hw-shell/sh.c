@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <errno.h>
 
 // Simplifed xv6 shell.
 
@@ -53,24 +54,23 @@ runcmd(struct cmd *cmd)
     exit(0);
   
   switch(cmd->type){
-  default:
-    fprintf(stderr, "unknown runcmd\n");
-    exit(-1);
-
   case ' ':
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0) {
       exit(0);
     }
     // Your code here ...
+    // fprintf(stderr, "starting to run cmd: %s\n", ecmd->argv[0]);
     execvp(ecmd->argv[0], ecmd->argv);
     fprintf(stderr, "exec error !\n");
+    exit(-1);
 
     break;
 
   case '>':
   case '<':
     rcmd = (struct redircmd*)cmd;
+    // fprintf(stderr, "starting to run <> cmd: %s\n", rcmd->file);
     // Your code here ...
     mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
     if (rcmd->type == '<') {
@@ -94,35 +94,45 @@ runcmd(struct cmd *cmd)
 
   case '|':
     pcmd = (struct pipecmd*)cmd;
+    // fprintf(stderr, "starting to run pcmd\n");
     // Your code here ...
-    int pfd[2];
-    pipe(pfd);
+    pipe(p);
 
-    if (fork() == 0) {
+    if (fork1() == 0) {
       // child for read, right side command
       close(0);
-      if (dup(pfd[0]) != 0) {
+      if (dup(p[0]) != 0) {
         fprintf(stderr, "error when dup !\n");
         exit(-1);
       }
-      close(pfd[0]);
-      close(pfd[1]);
+      close(p[0]);
+      close(p[1]);
       runcmd(pcmd->right);
       fprintf(stderr, "exec error !\n");
-    } else {
+    } 
+    if (fork1() == 0) {
       // left side command for writing
       close(1);
-      if (dup(pfd[1]) != 1) {
+      if (dup(p[1]) != 1) {
         fprintf(stderr, "dup error !\n");
         exit(-1);
       }
-      close(pfd[0]);
-      close(pfd[1]);
+      close(p[0]);
+      close(p[1]);
       runcmd(pcmd->left);
       fprintf(stderr, "exec error !\n");
     }
+    close(p[0]);
+    close(p[1]);
+    int stat;
+    wait(&stat);
+    wait(&stat);
 
     break;
+  
+  default:
+    fprintf(stderr, "unknown runcmd\n");
+    exit(-1);
   }    
   exit(0);
 }
@@ -130,7 +140,7 @@ runcmd(struct cmd *cmd)
 int
 getcmd(char *buf, int nbuf)
 {
-  
+  // fprintf(stderr, "buf num: %d, buf content: %s\n", nbuf, buf);
   if (isatty(fileno(stdin)))
     fprintf(stdout, "6.828$ ");
   memset(buf, 0, nbuf);
@@ -145,6 +155,7 @@ main(void)
 {
   static char buf[100];
   int fd, r;
+  pid_t pid = 0;
 
   // Read and run input commands.
   while(getcmd(buf, sizeof(buf)) >= 0){
@@ -156,9 +167,17 @@ main(void)
         fprintf(stderr, "cannot cd %s\n", buf+3);
       continue;
     }
-    if(fork1() == 0)
+    if((pid = fork1()) == 0)
       runcmd(parsecmd(buf));
+    // wait() only waits for children (not grandchildren)
+    // using WNOHANG flag --> child process may still have not terminated after return ??
     wait(&r);
+    // while ((pid = waitpid(-1, &r, WNOHANG)) >= 0) {
+    //   // fprintf(stderr, "pid: %d\n", pid);
+    //   if (errno == ECHILD) {
+    //       break;
+    //   }
+    // }
   }
   exit(0);
 }
