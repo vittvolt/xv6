@@ -185,6 +185,7 @@ main(void)
     // in the child process
     lseek(STDIN_FILENO, pos, SEEK_SET);
 
+    // Don't use WNOHANG here ! Blocking works !
     // while ((pid = waitpid(-1, &r, WNOHANG)) >= 0) {
     //   // fprintf(stderr, "pid: %d\n", pid);
     //   if (errno == ECHILD) {
