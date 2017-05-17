@@ -60,7 +60,7 @@ runcmd(struct cmd *cmd)
       exit(0);
     }
     // Your code here ...
-    // fprintf(stderr, "starting to run cmd: %s\n", ecmd->argv[0]);
+    // fprintf(stderr, "starting to run cmd: %s 2nd arg: %s\n", ecmd->argv[0], ecmd->argv[1]);
     execvp(ecmd->argv[0], ecmd->argv);
     fprintf(stderr, "exec error !\n");
     exit(-1);
@@ -70,20 +70,20 @@ runcmd(struct cmd *cmd)
   case '>':
   case '<':
     rcmd = (struct redircmd*)cmd;
-    // fprintf(stderr, "starting to run <> cmd: %s\n", rcmd->file);
+    // fprintf(stderr, "starting to run %c cmd: %s\n", rcmd->type, rcmd->file);
     // Your code here ...
     mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
     if (rcmd->type == '<') {
       // input
       close(0);
-      if (open(rcmd->file, O_RDONLY, mode) != 0) {
+      if (open(rcmd->file, rcmd->mode, mode) != 0) {
         fprintf(stderr, "Opening file error !\n");
         exit(-1);
       }
     } else {
       // output
       close(1);
-      if (open(rcmd->file, O_WRONLY|O_CREAT|O_TRUNC, mode) != 1) {
+      if (open(rcmd->file, rcmd->mode, mode) != 1) {
         fprintf(stderr, "Opening file error !\n");
         exit(-1);
       }
@@ -108,7 +108,6 @@ runcmd(struct cmd *cmd)
       close(p[0]);
       close(p[1]);
       runcmd(pcmd->right);
-      fprintf(stderr, "exec error !\n");
     } 
     if (fork1() == 0) {
       // left side command for writing
@@ -120,7 +119,6 @@ runcmd(struct cmd *cmd)
       close(p[0]);
       close(p[1]);
       runcmd(pcmd->left);
-      fprintf(stderr, "exec error !\n");
     }
     close(p[0]);
     close(p[1]);
@@ -128,7 +126,7 @@ runcmd(struct cmd *cmd)
     wait(&stat);
     wait(&stat);
 
-    break;
+    exit(0);
   
   default:
     fprintf(stderr, "unknown runcmd\n");
@@ -144,7 +142,11 @@ getcmd(char *buf, int nbuf)
   if (isatty(fileno(stdin)))
     fprintf(stdout, "6.828$ ");
   memset(buf, 0, nbuf);
-  fgets(buf, nbuf, stdin);
+  if (fgets(buf, nbuf, stdin) == NULL) {
+    // fprintf(stderr, "EOF !!!\n");
+    return -1;
+  }
+  // fprintf(stderr, "getcmd output ======= --> %s ======= \n", buf);
   if(buf[0] == 0) // EOF
     return -1;
   return 0;
@@ -159,6 +161,7 @@ main(void)
 
   // Read and run input commands.
   while(getcmd(buf, sizeof(buf)) >= 0){
+    // fprintf(stderr, "getcmd output ======= --> %s\n", buf);
     if(buf[0] == 'c' && buf[1] == 'd' && buf[2] == ' '){
       // Clumsy but will have to do for now.
       // Chdir has no effect on the parent if run in the child.
@@ -167,11 +170,21 @@ main(void)
         fprintf(stderr, "cannot cd %s\n", buf+3);
       continue;
     }
-    if((pid = fork1()) == 0)
+
+    // IMPORTANT: get current file offset
+    int pos = lseek(STDIN_FILENO, 0, SEEK_CUR);
+
+    if((pid = fork1()) == 0) {
       runcmd(parsecmd(buf));
+    }
     // wait() only waits for children (not grandchildren)
     // using WNOHANG flag --> child process may still have not terminated after return ??
     wait(&r);
+
+    // IMPORTANT: reset the file offset to avoid it being changed by some STDIN initialization
+    // in the child process
+    lseek(STDIN_FILENO, pos, SEEK_SET);
+
     // while ((pid = waitpid(-1, &r, WNOHANG)) >= 0) {
     //   // fprintf(stderr, "pid: %d\n", pid);
     //   if (errno == ECHILD) {
