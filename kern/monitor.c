@@ -64,20 +64,21 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 
 	cprintf("Stack backtrace:\n");
 
-	while (1) {
-		if (ebp == 0) {
-			break;
-		}
-
+	while (ebp != 0) {
+		// The $eip stores the return instruction pointer
 		uint32_t eip = *((uint32_t*) (ebp + 4));
 
+		// The 5 arguments pushed on to the stack right before
+		// the function is called
 		uint32_t arg1 = *((uint32_t*) (ebp + 8));
 		uint32_t arg2 = *((uint32_t*) (ebp + 12));
 		uint32_t arg3 = *((uint32_t*) (ebp + 16));
 		uint32_t arg4 = *((uint32_t*) (ebp + 20));
 		uint32_t arg5 = *((uint32_t*) (ebp + 24));
 
-		cprintf("ebp %x eip %x args %08x %08x %08x %08x %08x\n", ebp, eip,
+		cprintf("ebp %x eip %x args %08x %08x %08x %08x %08x\n",
+				ebp,
+				eip,
 	            arg1,
 				arg2,
 				arg3,
