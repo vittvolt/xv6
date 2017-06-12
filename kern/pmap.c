@@ -110,7 +110,7 @@ boot_alloc(uint32_t n)
     }
 
     uint32_t temp = n % PGSIZE;
-    uint32_t pages_needed = (temp == 0) ? n / PGSIZE : n / PGSIZE + 1;
+    uint32_t pages_needed = (temp == 0) ? n / PGSIZE : (n / PGSIZE) + 1;
 
     char *prev_ptr = nextfree;
     nextfree += pages_needed * PGSIZE;
@@ -285,11 +285,13 @@ page_init(void)
         page_free_list = &pages[i];
     }
 
+    // uint32_t safe_loc = 0xf0400000;
+
     // kernel memory from physical memory 0x100000 -> ...
     // and followed by descriptor table and PageInfo array
     // can start from nextfree ?
     cprintf("nextfree: %x\n", (uint32_t) boot_alloc(0));
-    for (i = ((uint32_t) boot_alloc(0)) / PGSIZE; i < npages; i++) {
+    for (i = ((uint32_t) PADDR(boot_alloc(0))) / PGSIZE; i < npages; i++) {
         pages[i].pp_ref = 0;
         pages[i].pp_link = page_free_list;
         page_free_list = &pages[i];
@@ -492,6 +494,7 @@ check_page_free_list(bool only_low_memory)
 		struct PageInfo *pp1, *pp2;
 		struct PageInfo **tp[2] = { &pp1, &pp2 };
 		for (pp = page_free_list; pp; pp = pp->pp_link) {
+            // comparing with 0xf0400000
 			int pagetype = PDX(page2pa(pp)) >= pdx_limit;
 			*tp[pagetype] = pp;
 			tp[pagetype] = &pp->pp_link;
