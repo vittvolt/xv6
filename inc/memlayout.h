@@ -74,7 +74,7 @@
  *                     | - - - - - - - - - - - - - - -|                   |
  *                     |  User STAB Data (optional)   |                 PTSIZE
  *    USTABDATA ---->  +------------------------------+ 0x00200000        |
- *                     |       Empty Memory (*)       |                   |
+ *                     |       Empty Memory (*)       |                   |    0x00100000 -> .... kernel memory
  *    0 ------------>  +------------------------------+                 --+
  *
  * (*) Note: The kernel ensures that "Invalid Memory" is *never* mapped.
@@ -167,7 +167,7 @@ extern volatile pde_t uvpd[];     // VA of current page directory
  * Read/write to the kernel, read-only to user programs.
  *
  * Each struct PageInfo stores metadata for one physical page.
- * Is it NOT the physical page itself, but there is a one-to-one
+ * It is NOT the physical page itself, but there is a one-to-one
  * correspondence between physical pages and struct PageInfo's.
  * You can map a struct PageInfo * to the corresponding physical address
  * with page2pa() in kern/pmap.h.
@@ -181,7 +181,7 @@ struct PageInfo {
 	// Pages allocated at boot time using pmap.c's
 	// boot_alloc do not have valid reference count fields.
 
-	uint16_t pp_ref;
+	uint16_t pp_ref;    // 4 bytes allignment --> 8 bytes struct
 };
 
 #endif /* !__ASSEMBLER__ */

@@ -102,8 +102,20 @@ boot_alloc(uint32_t n)
 	// to a multiple of PGSIZE.
 	//
 	// LAB 2: Your code here.
+    if (n == 0) { return nextfree; }
 
-	return NULL;
+    // No large than first 4MB of memory initially hardcoded virtual memory
+    if ((uint32_t) nextfree >= 0xf0400000 ) { 
+        panic("Physical page allocation has been drained!\n");
+    }
+
+    uint32_t temp = n % PGSIZE;
+    uint32_t pages_needed = (temp == 0) ? n / PGSIZE : n / PGSIZE + 1;
+
+    char *prev_ptr = nextfree;
+    nextfree += pages_needed * PGSIZE;
+
+	return prev_ptr;
 }
 
 // Set up a two-level page table:
@@ -125,7 +137,7 @@ mem_init(void)
 	i386_detect_memory();
 
 	// Remove this line when you're ready to test this function.
-	panic("mem_init: This function is not finished\n");
+	// panic("mem_init: This function is not finished\n");
 
 	//////////////////////////////////////////////////////////////////////
 	// create initial page directory.
@@ -135,10 +147,13 @@ mem_init(void)
 	//////////////////////////////////////////////////////////////////////
 	// Recursively insert PD in itself as a page table, to form
 	// a virtual page table at virtual address UVPT.
-	// (For now, you don't have understand the greater purpose of the
+	// (For now, you don't have to understand the greater purpose of the
 	// following line.)
 
 	// Permissions: kernel R, user R
+    uint32_t v1 = PDX(UVPT);
+    uint32_t v2 = PADDR(kern_pgdir);
+    cprintf("v1: %x, v2: %x\n", v1, v2);
 	kern_pgdir[PDX(UVPT)] = PADDR(kern_pgdir) | PTE_U | PTE_P;
 
 	//////////////////////////////////////////////////////////////////////
@@ -148,7 +163,8 @@ mem_init(void)
 	// array.  'npages' is the number of physical pages in memory.  Use memset
 	// to initialize all fields of each struct PageInfo to 0.
 	// Your code goes here:
-
+    pages = (struct PageInfo *) boot_alloc(8 * npages);
+    memset(pages, 0, 8 * npages);
 
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
@@ -161,6 +177,8 @@ mem_init(void)
 	check_page_free_list(1);
 	check_page_alloc();
 	check_page();
+
+    panic("Check point 1 !!!\n");
 
 	//////////////////////////////////////////////////////////////////////
 	// Now we set up virtual memory
@@ -251,12 +269,31 @@ page_init(void)
 	// Change the code to reflect this.
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
+    
 	size_t i;
-	for (i = 0; i < npages; i++) {
-		pages[i].pp_ref = 0;
-		pages[i].pp_link = page_free_list;
-		page_free_list = &pages[i];
-	}
+	// for (i = 0; i < npages; i++) {
+	// 	pages[i].pp_ref = 0;
+	// 	pages[i].pp_link = page_free_list;
+	// 	page_free_list = &pages[i];
+	// }
+
+    pages[0].pp_ref = 0xffff;   // not necessary ?
+
+    for (i = 1; i < npages_basemem; i++) {
+        pages[i].pp_ref = 0;
+        pages[i].pp_link = page_free_list;
+        page_free_list = &pages[i];
+    }
+
+    // kernel memory from physical memory 0x100000 -> ...
+    // and followed by descriptor table and PageInfo array
+    // can start from nextfree ?
+    cprintf("nextfree: %x\n", (uint32_t) boot_alloc(0));
+    for (i = ((uint32_t) boot_alloc(0)) / PGSIZE; i < npages; i++) {
+        pages[i].pp_ref = 0;
+        pages[i].pp_link = page_free_list;
+        page_free_list = &pages[i];
+    }
 }
 
 //
