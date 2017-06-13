@@ -165,7 +165,7 @@ mem_init(void)
 	// Your code goes here:
     pages = (struct PageInfo *) boot_alloc(8 * npages);
     memset(pages, 0, 8 * npages);
-
+    
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
 	// up the list of free physical pages. Once we've done so, all further
@@ -173,6 +173,8 @@ mem_init(void)
 	// particular, we can now map memory using boot_map_region
 	// or page_insert
 	page_init();
+
+    cprintf("phys addr: %x, v addr: %x\n", page2pa(page_free_list), page2kva(page_free_list));
 
 	check_page_free_list(1);
 	check_page_alloc();
@@ -314,7 +316,18 @@ struct PageInfo *
 page_alloc(int alloc_flags)
 {
 	// Fill this function in
-	return 0;
+
+    if (page_free_list == NULL) { return NULL; }
+
+    struct PageInfo *pg = page_free_list;
+    page_free_list = page_free_list->pp_link;
+
+    pg->pp_link = NULL;
+    if (alloc_flags & ALLOC_ZERO) {
+        memset(page2kva(pg), 0, PGSIZE);
+    }
+
+	return pg;
 }
 
 //
@@ -327,6 +340,13 @@ page_free(struct PageInfo *pp)
 	// Fill this function in
 	// Hint: You may want to panic if pp->pp_ref is nonzero or
 	// pp->pp_link is not NULL.
+
+    if (pp == NULL || pp->pp_link != NULL || pp->pp_ref != 0) { 
+        panic("--> Like wtf man ?\n");
+    }
+
+    pp->pp_link = page_free_list;
+    page_free_list = pp;
 }
 
 //
