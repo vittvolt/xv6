@@ -166,6 +166,8 @@ mem_init(void)
     pages = (struct PageInfo *) boot_alloc(8 * npages);
     memset(pages, 0, 8 * npages);
     
+    cprintf("[DEBUG]: kern_pgdir: %x, pages: %x\n", (uint32_t) kern_pgdir, (uint32_t) pages);
+
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
 	// up the list of free physical pages. Once we've done so, all further
@@ -174,7 +176,7 @@ mem_init(void)
 	// or page_insert
 	page_init();
 
-    cprintf("phys addr: %x, v addr: %x\n", page2pa(page_free_list), page2kva(page_free_list));
+    cprintf("[DEBUG]: latest free phys addr: %x, v addr: %x\n", page2pa(page_free_list), page2kva(page_free_list));
 
 	check_page_free_list(1);
 	check_page_alloc();
@@ -292,7 +294,7 @@ page_init(void)
     // kernel memory from physical memory 0x100000 -> ...
     // and followed by descriptor table and PageInfo array
     // can start from nextfree ?
-    cprintf("nextfree: %x\n", (uint32_t) boot_alloc(0));
+    cprintf("[DEBUG]: nextfree: %x\n", (uint32_t) boot_alloc(0));
     for (i = ((uint32_t) PADDR(boot_alloc(0))) / PGSIZE; i < npages; i++) {
         pages[i].pp_ref = 0;
         pages[i].pp_link = page_free_list;
