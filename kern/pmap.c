@@ -388,6 +388,34 @@ pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
 	// Fill this function in
+    uintptr_t pdx = PDX(va);
+    uintptr_t ptx = PTX(va);
+    uint32_t offset = PGOFF(va);
+
+    pte_t *pde = (pte_t *) PTE_ADDR(pgdir[pdx]);
+
+    if (!pde) {
+        if (!create) {
+            return NULL;
+        } else {
+            struct PageInfo *pi = page_alloc(ALLOC_ZERO);
+            if (pi == NULL) { return NULL; }
+            pi->pp_ref += 1;
+
+            pte_t *pgtable = page2kva(pi);  // the start of the page table
+
+            pgdir[pdx] = ((pde_t) pgtable | PTE_P); // is this enough ?
+            return pgtable + ptx;
+        }
+    } else {
+        if ((((uint32_t) pde) & PTE_P) == 0) {
+            cprintf("[FATAL] Page dir entry not present,"
+                    "pde addr %x with value %x !\n", pgdir + pdx, (uint32_t) pde);
+            return NULL;
+        }
+        return pde + ptx;
+    }
+
 	return NULL;
 }
 
@@ -405,7 +433,17 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 static void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
-	// Fill this function in
+	// Fill this function in    
+    for (uintptr_t a = va; a < va + size; a += PGSIZE) {
+        pte_t *pte = pgdir_walk(pgdir, (void *) a, 1);
+        if (pte == NULL) {
+            cprintf("[FATAL] Some serious problems happened...\n");
+        }
+
+        *pte = ((uint32_t) KADDR(pa)) | PTE_P;
+
+        pa += PGSIZE;
+    }
 }
 
 //
@@ -437,6 +475,8 @@ int
 page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 {
 	// Fill this function in
+
+
 	return 0;
 }
 
@@ -455,7 +495,15 @@ struct PageInfo *
 page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 {
 	// Fill this function in
-	return NULL;
+    pte_t *pte = pgdir_walk(pgdir, va, 0);
+    if (pte == NULL || *pte == 0) { return NULL; }
+
+    if (!pte_store) { *pte_store = pte; }
+
+    uintptr_t page_addr = *pte;
+    physaddr_t page_pa = PADDR((void *) page_addr);
+
+	return pa2page(page_pa);
 }
 
 //
@@ -477,6 +525,7 @@ void
 page_remove(pde_t *pgdir, void *va)
 {
 	// Fill this function in
+    
 }
 
 //
