@@ -475,7 +475,7 @@ int
 page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 {
 	// Fill this function in
-
+    
 
 	return 0;
 }
@@ -525,7 +525,14 @@ void
 page_remove(pde_t *pgdir, void *va)
 {
 	// Fill this function in
-    
+    pte_t *pte;
+    struct PageInfo *pginfo = page_lookup(pgdir, va, &pte);
+
+    if (pginfo == NULL) { return; } // no such physical page exists
+
+    *pte = 0;
+    page_decref(pginfo);
+    tlb_invalidate(pgdir, va);
 }
 
 //
