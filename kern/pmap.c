@@ -400,6 +400,10 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
         } else {
             struct PageInfo *pi = page_alloc(ALLOC_ZERO);
             if (pi == NULL) { return NULL; }
+
+            // cprintf("[debug] pgdir_walk allocated a new page table page\n");
+            // cprintf("----- PageInfo *: %x, phys addr: %x\n", (uint32_t) pi, (uint32_t) page2pa(pi));
+
             pi->pp_ref += 1;
 
             pte_t *pgtable = page2kva(pi);  // the start of the page table
@@ -408,11 +412,6 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
             return pgtable + ptx;
         }
     } else {
-        if ((((uint32_t) pt_phys) & PTE_P) == 0) {
-            cprintf("[FATAL] Page dir entry not present,"
-                    "pde addr %x with value %x !\n", pgdir + pdx, (uint32_t) pt_phys);
-            return NULL;
-        }
         uintptr_t pt_v = (uintptr_t) KADDR(pt_phys);
         return ((pte_t *) pt_v) + ptx;
     }
@@ -478,10 +477,19 @@ page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 	// Fill this function in
     pte_t *pte = pgdir_walk(pgdir, va, 0);
 
+    uintptr_t pdx = PDX(va);
+
     if (pte && PTE_ADDR(*pte) != 0) {
         if (PTE_ADDR(*pte) != (uint32_t) page2pa(pp)) {
             page_remove(pgdir, va);
             tlb_invalidate(pgdir, va);
+        } else {
+            // The page has already been mapped
+            // Update the permission for the PTE in the page table
+            *pte = PTE_ADDR(*pte) | perm | PTE_P;
+            // Update the permission for the PTE in the page dir
+            pgdir[pdx] = PTE_ADDR(pgdir[pdx]) | perm | PTE_P;
+            return 0;
         }
     }
 
@@ -491,7 +499,8 @@ page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
     if (pte == NULL) { return -E_NO_MEM; }
 
     physaddr_t new_page_addr = page2pa(pp);
-    *pte = ((uint32_t) new_page_addr) | perm;
+    *pte = new_page_addr | perm | PTE_P;
+    pgdir[pdx] = PTE_ADDR(pgdir[pdx]) | perm | PTE_P;
     pp->pp_ref += 1;
 
 	return 0;
@@ -515,7 +524,7 @@ page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
     pte_t *pte = pgdir_walk(pgdir, va, 0);
     if (pte == NULL || PTE_ADDR(*pte) == 0) { return NULL; }
 
-    if (!pte_store) { *pte_store = pte; }
+    if (pte_store) { *pte_store = pte; }
 
     physaddr_t pg_addr = PTE_ADDR(*pte);
 
